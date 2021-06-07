@@ -3,9 +3,12 @@
 # Steps:
 # Go to https://osu.instructure.com/api/v1/courses/{course_id}/discussion_topics/{discussion_id}/view?include_new_entries=1&include_enrollment_state=1
 # Download pretty printed json file
-# Run jq '.view' file.json | ./grading.awk
-# Run jq '.view' file.json | ./grading.awk | xclip -selection clipboard
+# Run jq '.view' file.json | ./grading.awk --csv csvfile
+# Run jq '.view' file.json | ./grading.awk --csv csvfile | xclip -selection clipboard
 #	to copy to clipboard
+# Argument explained:
+# --csv: Carmen csv file to align students id
+# --gradeonly: only generate grade
 # paste back to downloaded gradebook and import back to carmen.
 
 BEGIN {
@@ -16,6 +19,15 @@ BEGIN {
             file = ARGV[++pos]
 	    delete ARGV[pos]
         }
+        if (ARGV[pos] == "--gradeonly") {
+	    delete ARGV[pos]
+            gradeind = 1
+        }
+        if (ARGV[pos] == "--wordcount") {
+	    delete ARGV[pos]
+	    wcind = 1
+	}
+
     }
 
     total_point = 3
@@ -44,12 +56,11 @@ BEGIN {
     split($0, jsonarr, "\n")
     replyind = 0
     for (item in jsonarr) {
-	if (jsonarr[item] ~ /^.*"replies":.*/) {
-	    replyind = 1
-	}
-
-	if (jsonarr[item-3] jsonarr[item-2] jsonarr[item-1] ~ /[[:space:]]*}[[:space:]]*][[:space:]]*},/) {
+	if (jsonarr[item] ~ /.*"parent_id": null.*/) {
 	    replyind = 0
+	}
+	else if (jsonarr[item] ~ /.*"parent_id": [0-9]*.*/) {
+	    replyind = 1
 	}
 
 	if (jsonarr[item] ~ /^.*"user_id".*/) {
@@ -124,13 +135,26 @@ END {
 	for (id in creditarr) {
 	    if (id == fieldarr[3]) {
 		ind = 1;
+		if (wcind == 1) {
+		    print id "," creditarr[id] wcmsgarr[id] wcreplyarr[id]
+		    break
+		}
+		if (gradeind == 1) {
+		    print creditarr[id]
+		    break
+		}
 		print id "," creditarr[id] msgarr[id] replyarr[id]
 		break
 	    }
 	}
 	if (ind == 0) {
 	    id = fieldarr[3]
-	    print id "," 0
+	    if (gradeind == 1 || wcind == 1) {
+		print 0
+	    }
+	    else {
+		print id "," 0
+	    }
 	}
 
     }
